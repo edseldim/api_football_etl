@@ -1153,38 +1153,41 @@ class FootballAPI:
 
         df.to_parquet(f"{df_name}.parquet")
 
-    def run_leagues(self, params = None, consolidate_output = False):
-        """Retrieve, validate, and save the available leagues table.
+    def run_leagues(self, params = None, consolidate_output = False, save_to_parquet = False):
+        """Retrieve, validate, and optionally save the available leagues table.
 
         Parameters:
             params (dict|None): Parameters to use for league retrieval.
             consolidate_output (bool): When True, save output with a consolidated file prefix.
+            save_to_parquet (bool): When False, do not write parquet files to disk.
 
         Returns:
             dict: Retrieved league tables keyed by table name.
         """
         resulting_tables = self.retrieve_full_league_data(params=params)
 
-        for table_name, table_data in resulting_tables.items():
-            if consolidate_output:
-                full_table_name = f"consolidated_leagues_{table_name}"
-            else:
-                schema_name = TABLE_NAME_TO_PARQUET_SCHEMA.get(
-                    table_name,
-                    f"{table_name}.parquet"
-                )
-                full_table_name = Path(schema_name).stem
-            self._log_event("INFO", f"saving {full_table_name}")
-            self._save_parquet(full_table_name, table_data)
+        if save_to_parquet:
+            for table_name, table_data in resulting_tables.items():
+                if consolidate_output:
+                    full_table_name = f"consolidated_leagues_{table_name}"
+                else:
+                    schema_name = TABLE_NAME_TO_PARQUET_SCHEMA.get(
+                        table_name,
+                        f"{table_name}.parquet"
+                    )
+                    full_table_name = Path(schema_name).stem
+                self._log_event("INFO", f"saving {full_table_name}")
+                self._save_parquet(full_table_name, table_data)
 
         return resulting_tables
 
-    def run_full_season_data(self, params, consolidate_output = True):
-        """Retrieve, validate, and save all fixtures for a league and season.
+    def run_full_season_data(self, params, consolidate_output = True, save_to_parquet = False):
+        """Retrieve, validate, and optionally save all fixtures for a league and season.
 
         Parameters:
             params (dict): Required keys are 'league' and 'season'.
             consolidate_output (bool): When True, save consolidated fixture tables.
+            save_to_parquet (bool): When False, do not write parquet files to disk.
 
         Returns:
             dict: Fixture tables keyed by table name, either consolidated or per-fixture.
@@ -1223,15 +1226,17 @@ class FootballAPI:
 
         return self.run_fixtures(
             fixture_ids,
-            consolidate_output=consolidate_output
+            consolidate_output=consolidate_output,
+            save_to_parquet=save_to_parquet
         )
 
-    def run_fixtures(self, fixture_ids, consolidate_output = False):
-        """Retrieve fixture data for each fixture ID and save either per-fixture or consolidated parquet files.
+    def run_fixtures(self, fixture_ids, consolidate_output = False, save_to_parquet = False):
+        """Retrieve fixture data for each fixture ID and optionally save to parquet files.
 
         Parameters:
             fixture_ids (list[int]): Fixture IDs to retrieve.
             consolidate_output (bool): When True, merge all fixtures into consolidated tables.
+            save_to_parquet (bool): When False, do not write parquet files to disk.
 
         Returns:
             dict: Fixture results keyed by table name or fixture ID.
@@ -1268,10 +1273,11 @@ class FootballAPI:
 
                 processed_fixtures[fixture_id] = resulting_tables
 
-                for tbl_name, tbl_dict in resulting_tables.items():
-                    full_table_name = f"fixture_{fixture_id}_{tbl_name}"
-                    self._log_event("INFO",f"saving {full_table_name}")
-                    self._save_parquet(full_table_name, tbl_dict)
+                if save_to_parquet:
+                    for tbl_name, tbl_dict in resulting_tables.items():
+                        full_table_name = f"fixture_{fixture_id}_{tbl_name}"
+                        self._log_event("INFO",f"saving {full_table_name}")
+                        self._save_parquet(full_table_name, tbl_dict)
             
         if consolidate_output:
 
@@ -1287,10 +1293,11 @@ class FootballAPI:
                     "match_player_stats": match_player_stats,
                 }
             
-            for tbl_name, tbl_dict in total_output.items():
-                full_table_name = f"consolidated_fixtures_{tbl_name}"
-                self._log_event("INFO",f"saving {full_table_name}")
-                self._save_parquet(full_table_name, tbl_dict)
+            if save_to_parquet:
+                for tbl_name, tbl_dict in total_output.items():
+                    full_table_name = f"consolidated_fixtures_{tbl_name}"
+                    self._log_event("INFO",f"saving {full_table_name}")
+                    self._save_parquet(full_table_name, tbl_dict)
 
             return total_output
 
