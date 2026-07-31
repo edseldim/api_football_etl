@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional, Union
 
 import dotenv
 import pandas as pd
@@ -13,7 +14,7 @@ dotenv.load_dotenv()
 class PostgresConnector:
     """Connect to a PostgreSQL database and upload pandas DataFrames."""
 
-    def __init__(self, database_url: str | None = None, env_path: str | Path | None = None, echo: bool = False):
+    def __init__(self, database_url: Optional[str] = None, env_path: Optional[Union[str, Path]] = None, echo: bool = False):
         """Create a database connector using the .env connection string.
 
         Parameters:
@@ -37,9 +38,9 @@ class PostgresConnector:
         table_name: str,
         if_exists: str = "append",
         index: bool = False,
-        schema: str | None = None,
-        dtype: dict | None = None,
-        method: str | None = "multi",
+        schema: Optional[str] = None,
+        dtype: Optional[dict] = None,
+        method: Optional[str] = "multi",
     ) -> None:
         """Upload a pandas DataFrame to a PostgreSQL table.
 
