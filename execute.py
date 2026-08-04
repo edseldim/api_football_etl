@@ -37,17 +37,28 @@ class FootballETL:
                 debug=debug,
                 log_event=self._log_event,
             )
-            self.database_connector = PostgresConnector(
-                database_url=database_url,
-                env_path=database_env_path,
-                echo=database_echo,
-                log_event=self._log_event,
-            )
+            # Database creation is deferred until run() actually uploads data.
+            # This lets local-output runs work without DATABASE_URL configured.
+            self.database_connector = None
+            self._database_config = {
+                "database_url": database_url,
+                "env_path": database_env_path,
+                "echo": database_echo,
+            }
         except Exception as exc:
             self._log_event("ERROR", f"Football ETL initialization failed: {exc}")
             raise
 
         self._log_event("INFO", "Football ETL initialized")
+
+    def _get_database_connector(self) -> PostgresConnector:
+        """Create and cache the database connector only when an upload is requested."""
+        if self.database_connector is None:
+            self.database_connector = PostgresConnector(
+                **self._database_config,
+                log_event=self._log_event,
+            )
+        return self.database_connector
 
     def _create_log_file(self) -> Optional[Path]:
         """Create the single log file used by the entire ETL instance."""
@@ -109,12 +120,20 @@ class FootballETL:
         *,
         if_exists: str = "replace",
         schema: Optional[str] = None,
+        save_locally: bool = False,
+        local_output_folder: Union[str, Path] = "data",
     ) -> Dict[str, pd.DataFrame]:
-        """Run the full-season ETL and upload every returned table.
+        """Run the full-season ETL and persist or upload every returned table.
 
         Table names are taken from the keys returned by ``run_full_season_data``.
-        The normalized DataFrames are returned for inspection or downstream use.
+        By default, tables are uploaded to the configured database. When
+        ``save_locally`` is True, database upload is skipped and each table is
+        written to ``local_output_folder/<table_name>.parquet`` instead. The
+        normalized DataFrames are returned for inspection or downstream use.
         """
+        if not isinstance(save_locally, bool):
+            raise TypeError("save_locally must be a bool")
+
         self._log_event("INFO", f"Full-season ETL started with params {params}")
         try:
             resulting_tables = self.api_client.run_full_season_data(
@@ -125,25 +144,37 @@ class FootballETL:
             if not isinstance(resulting_tables, dict):
                 raise TypeError("run_full_season_data must return a dict of tables")
 
-            uploaded_tables: Dict[str, pd.DataFrame] = {}
+            output_folder = Path(local_output_folder).expanduser()
+            if save_locally:
+                output_folder.mkdir(parents=True, exist_ok=True)
+                self._log_event("INFO", f"Saving API results locally to {output_folder}")
+            else:
+                database_connector = self._get_database_connector()
+
+            processed_tables: Dict[str, pd.DataFrame] = {}
             for table_name, table_data in resulting_tables.items():
                 dataframe = self._to_dataframe(table_data)
                 self._log_event(
                     "INFO",
                     f"Prepared {len(dataframe)} rows for table {table_name}",
                 )
-                self.database_connector.upload_dataframe(
-                    dataframe,
-                    table_name=table_name,
-                    if_exists=if_exists,
-                    schema=schema,
-                )
-                uploaded_tables[table_name] = dataframe
+                if save_locally:
+                    output_path = output_folder / f"{table_name}.parquet"
+                    dataframe.to_parquet(output_path)
+                    self._log_event("INFO", f"Saved {table_name} to {output_path}")
+                else:
+                    database_connector.upload_dataframe(
+                        dataframe,
+                        table_name=table_name,
+                        if_exists=if_exists,
+                        schema=schema,
+                    )
+                processed_tables[table_name] = dataframe
 
             self._log_event(
-                "INFO", f"Full-season ETL completed: {len(uploaded_tables)} tables"
+                "INFO", f"Full-season ETL completed: {len(processed_tables)} tables"
             )
-            return uploaded_tables
+            return processed_tables
         except Exception as exc:
             self._log_event("ERROR", f"Full-season ETL failed: {exc}")
             raise
@@ -158,7 +189,7 @@ def main() -> None:
     etl = FootballETL(api_key=api_key, debug=True)
 
     uploaded_tables = etl.run(
-        params={"league": 128, "season": 2025}
+        params={"league":128,"season":2026, "date":"2026-07-29"}, save_locally=True
     )
 
     print(f"ETL completed: {len(uploaded_tables)} tables uploaded")
