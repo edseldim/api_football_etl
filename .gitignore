@@ -3,6 +3,5 @@ __pycache__/
 .logs/
 .venv/
 data/
-tests/
 .env
 todo_list.md
