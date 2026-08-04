@@ -3,8 +3,8 @@ import json
 import os
 import dotenv
 import pandas as pd
-from datetime import datetime
 from pathlib import Path
+from typing import Any, Callable, Optional
 
 dotenv.load_dotenv()
 
@@ -181,11 +181,11 @@ TABLE_NAME_TO_PARQUET_SCHEMA = {
 
 class FootballAPI:
 
-    def __init__(self, api_key, 
-                 other_headers = {}, 
-                 general_params = {}, 
+    def __init__(self, api_key,
+                 other_headers = None,
+                 general_params = None,
                  debug = False,
-                 log_folder = ".logs/"):
+                 log_event: Optional[Callable[[str, Any], None]] = None):
         """Initialize the FootballAPI client.
 
         Parameters:
@@ -193,7 +193,7 @@ class FootballAPI:
             other_headers (dict): Optional HTTP headers to include in requests.
             general_params (dict): Default query parameters such as league, season, and country.
             debug (bool): Enable verbose request and response logging.
-            log_folder (str): Path to store log files.
+            log_event (callable, optional): Shared ``(level, message)`` logger.
 
         Returns:
             None
@@ -204,7 +204,7 @@ class FootballAPI:
             'x-apisports-key': api_key
         }
 
-        self.headers.update(other_headers)
+        self.headers.update(other_headers or {})
 
         self.general_params = {
             "league": 128,
@@ -212,56 +212,14 @@ class FootballAPI:
             "country": "argentina"
         }
 
-        self.general_params.update(general_params)
+        self.general_params.update(general_params or {})
         self.debug = debug
-        self.log_folder = Path(log_folder).expanduser()
-        self.log_file_path = None
-        self._create_log_file()
+        self._log_event = log_event or self._default_log_event
 
-    def _create_log_file(self):
-        """Create a timestamped log file in the configured log folder.
-
-        Returns:
-            pathlib.Path or None: Created log file path, or None if creation failed.
-        """
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        requested_name = f"api-etl-{timestamp}.log"
-        log_path = self.log_folder / requested_name
-
-        try:
-            # self.log_folder.mkdir(parents=True, exist_ok=True)
-            if not self.log_folder.exists():
-                raise OSError("Log folder doesn't exist")
-            log_path.touch(exist_ok=True)
-            self.log_file_path = log_path
-            self._log_event("INFO", "Logger initialized")
-            return log_path
-        except OSError:
-            self.log_file_path = None
-            self._log_event("WARNING", "Unable to write log file; falling back to terminal")
-            return None
-
-    def _log_event(self, level, message):
-        """Write a log event to the current log file or fallback to the terminal.
-
-        Parameters:
-            level (str): Log level name.
-            message (str): Message text to log.
-
-        Returns:
-            None
-        """
-        timestamp = datetime.now().strftime("%Y%m%d-%H:%M:%S")
-        line = f"api-etl-{timestamp} [{level.upper()}]: {message}"
-        if self.log_file_path is None:
-            self._log_event("INFO",line)
-            return
-
-        try:
-            with self.log_file_path.open("a", encoding="utf-8") as handle:
-                handle.write(line + "\n")
-        except OSError:
-            self._log_event("INFO",line)
+    @staticmethod
+    def _default_log_event(level, message):
+        """Provide safe terminal logging when the API is used independently."""
+        print(f"[{str(level).upper()}] {message}")
 
     def _dtype_matches(self, series, expected_kind):
         """Return True when a DataFrame Series is compatible with the expected parquet kind.

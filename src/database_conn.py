@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import dotenv
 import pandas as pd
@@ -14,7 +14,13 @@ dotenv.load_dotenv()
 class PostgresConnector:
     """Connect to a PostgreSQL database and upload pandas DataFrames."""
 
-    def __init__(self, database_url: Optional[str] = None, env_path: Optional[Union[str, Path]] = None, echo: bool = False):
+    def __init__(
+        self,
+        database_url: Optional[str] = None,
+        env_path: Optional[Union[str, Path]] = None,
+        echo: bool = False,
+        log_event: Optional[Callable[[str, Any], None]] = None,
+    ):
         """Create a database connector using the .env connection string.
 
         Parameters:
@@ -23,14 +29,26 @@ class PostgresConnector:
             env_path (str | Path | None): Optional path to a .env file to load.
             echo (bool): When True, SQLAlchemy will log SQL statements.
         """
-        if env_path is not None:
-            dotenv.load_dotenv(dotenv_path=str(env_path))
+        self._log_event = log_event or self._default_log_event
 
-        self.database_url = database_url or os.getenv("DATABASE_URL")
-        if not self.database_url:
-            raise ValueError("DATABASE_URL must be set either via argument or in the environment")
+        try:
+            if env_path is not None:
+                dotenv.load_dotenv(dotenv_path=str(env_path))
 
-        self.engine: Engine = create_engine(self.database_url, echo=echo)
+            self.database_url = database_url or os.getenv("DATABASE_URL")
+            if not self.database_url:
+                raise ValueError("DATABASE_URL must be set either via argument or in the environment")
+
+            self.engine: Engine = create_engine(self.database_url, echo=echo)
+            self._log_event("INFO", "PostgreSQL connector initialized")
+        except Exception as exc:
+            self._log_event("ERROR", f"PostgreSQL connector initialization failed: {exc}")
+            raise
+
+    @staticmethod
+    def _default_log_event(level, message):
+        """Provide safe terminal logging when the connector is used independently."""
+        print(f"[{str(level).upper()}] {message}")
 
     def upload_dataframe(
         self,
@@ -57,17 +75,27 @@ class PostgresConnector:
             TypeError: If df is not a pandas DataFrame.
             ValueError: If table_name is empty or invalid.
         """
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("df must be a pandas DataFrame")
-        if not table_name or not isinstance(table_name, str):
-            raise ValueError("table_name must be a non-empty string")
+        try:
+            if not isinstance(df, pd.DataFrame):
+                raise TypeError("df must be a pandas DataFrame")
+            if not table_name or not isinstance(table_name, str):
+                raise ValueError("table_name must be a non-empty string")
 
-        df.to_sql(
-            name=table_name,
-            con=self.engine,
-            if_exists=if_exists,
-            index=index,
-            schema=schema,
-            dtype=dtype,
-            method=method,
-        )
+            self._log_event(
+                "INFO", f"Uploading {len(df)} rows to table {table_name}"
+            )
+            df.to_sql(
+                name=table_name,
+                con=self.engine,
+                if_exists=if_exists,
+                index=index,
+                schema=schema,
+                dtype=dtype,
+                method=method,
+            )
+            self._log_event(
+                "INFO", f"Uploaded {len(df)} rows to table {table_name}"
+            )
+        except Exception as exc:
+            self._log_event("ERROR", f"Upload to table {table_name!r} failed: {exc}")
+            raise
