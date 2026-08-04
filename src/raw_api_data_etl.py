@@ -1372,7 +1372,7 @@ class FootballAPI:
         if not isinstance(consolidate_output, bool):
             raise TypeError("consolidate_output must be a bool")
 
-        self._log_event("INFO", f"==========Extracting fixtures id in league {league_id} and season {season_id}")
+        self._log_event("INFO", f"\n\n==========Extracting fixtures id in league {league_id} and season {season_id}\n\n")
         request_params = params.copy()
         fixture_tables = self.retrieve_full_fixture_data(
             params=request_params
@@ -1384,7 +1384,7 @@ class FootballAPI:
             if isinstance(row, dict) and row.get("fixture_id") is not None
         })
 
-        self._log_event("INFO", f"==========Extracting fixtures data in league {league_id} and season {season_id}")
+        self._log_event("INFO", f"\n\n==========Extracting fixtures data in league {league_id} and season {season_id}\n\n")
 
         return self.run_fixtures(
             fixture_ids,
