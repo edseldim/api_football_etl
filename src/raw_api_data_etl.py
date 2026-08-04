@@ -609,7 +609,9 @@ class FootballAPI:
             "match_player_stats": match_player_stats,
         }
 
+        self._log_event("INFO", f"Validating schema for fixture_id: {match_summary.get('fixture_id','NA')}")
         for table_name, table_data in resulting_tables.items():
+
             if isinstance(table_data, dict):
                 frame = pd.DataFrame([table_data])
             elif isinstance(table_data, list):
@@ -866,7 +868,9 @@ class FootballAPI:
         """Request fixture data for the Argentina league, optionally by fixture ID.
 
         Parameters:
-            params (dict): Query parameters to include in the request.
+            params (dict): Query parameters to include in the request. Common
+                params passed to this method are ``{'id': fixture_id}`` when
+                retrieving match_summary, match_teams, and match_scores.
             params_not_to_include (list|tuple|set|str|None): Parameters to exclude from the request.
             save_file (bool): Save the raw response to a JSON file when True.
             iterate_pages (bool): Retrieve all paginated pages when True.
@@ -897,7 +901,9 @@ class FootballAPI:
         """Request fixture player statistics for the Argentina league.
 
         Parameters:
-            params (dict): Query parameters to include in the request.
+            params (dict): Query parameters to include in the request. Common
+                params passed to this method are ``{'fixture': fixture_id}`` when
+                retrieving match_players and match_player_stats.
             params_not_to_include (list|tuple|set|str|None): Parameters to exclude from the request.
             save_file (bool): Save the raw response to a JSON file when True.
             iterate_pages (bool): Retrieve all paginated pages when True.
@@ -923,11 +929,64 @@ class FootballAPI:
         
         return self._iterate_response(self.current_endpoint, filtered_params, save_file = save_file, iterate_pages = iterate_pages, flatten_result = flatten_result)
 
+    def get_argentina_league_fixture_data_events(self, params, params_not_to_include = None, save_file = False, iterate_pages = False, flatten_result = False):
+        """Request fixture events for the Argentina league.
+
+        Parameters:
+            params (dict): Query parameters to include in the request. Common
+                params passed to this method are ``{'fixture': fixture_id}``.
+            params_not_to_include (list|tuple|set|str|None): Parameters to exclude from the request.
+            save_file (bool): Save the raw response to a JSON file when True.
+            iterate_pages (bool): Retrieve all paginated pages when True.
+            flatten_result (bool): Save a flattened JSON file when True.
+
+        Returns:
+            dict|list: Parsed API response.
+        """
+        return self.get_custom_api_request(
+            "/fixtures/events",
+            params,
+            params_not_to_include=self._normalize_params_not_to_include(
+                ["country", "league", "season", "id"], params_not_to_include
+            ),
+            save_file=save_file,
+            iterate_pages=iterate_pages,
+            flatten_result=flatten_result
+        )
+
+    def get_argentina_league_fixture_data_lineups(self, params, params_not_to_include = None, save_file = False, iterate_pages = False, flatten_result = False):
+        """Request fixture lineups for the Argentina league.
+
+        Parameters:
+            params (dict): Query parameters to include in the request. Common
+                params passed to this method are ``{'fixture': fixture_id}`` when
+                retrieving match_lineups and teams_coaches.
+            params_not_to_include (list|tuple|set|str|None): Parameters to exclude from the request.
+            save_file (bool): Save the raw response to a JSON file when True.
+            iterate_pages (bool): Retrieve all paginated pages when True.
+            flatten_result (bool): Save a flattened JSON file when True.
+
+        Returns:
+            dict|list: Parsed API response.
+        """
+        return self.get_custom_api_request(
+            "/fixtures/lineups",
+            params,
+            params_not_to_include=self._normalize_params_not_to_include(
+                ["country", "league", "season", "id"], params_not_to_include
+            ),
+            save_file=save_file,
+            iterate_pages=iterate_pages,
+            flatten_result=flatten_result
+        )
+
     def get_argentina_league_fixture_data_statistics(self, params, params_not_to_include = None, save_file = False, iterate_pages = False, flatten_result = False):
         """Request fixture statistics for the Argentina league.
 
         Parameters:
-            params (dict): Query parameters to include in the request.
+            params (dict): Query parameters to include in the request. Common
+                params passed to this method are ``{'fixture': fixture_id}`` when
+                retrieving match_team_stats.
             params_not_to_include (list|tuple|set|str|None): Parameters to exclude from the request.
             save_file (bool): Save the raw response to a JSON file when True.
             iterate_pages (bool): Retrieve all paginated pages when True.
@@ -1087,6 +1146,148 @@ class FootballAPI:
             return [table_data]
         return [{"value": table_data}]
 
+    def _response_items(self, api_response):
+        """Return a flat list of objects from a normal or paginated API response."""
+        if isinstance(api_response, dict) and "response" in api_response:
+            api_response = api_response.get("response")
+
+        items = []
+        pending = list(api_response) if isinstance(api_response, list) else [api_response]
+        while pending:
+            item = pending.pop(0)
+            if isinstance(item, list):
+                pending[0:0] = item
+            elif isinstance(item, dict):
+                items.append(item)
+        return items
+
+    def _fixture_table_is_empty(self, table_data):
+        """Return True when a fixture table is absent or contains no rows."""
+        if table_data is None:
+            return True
+        if isinstance(table_data, pd.DataFrame):
+            return table_data.empty
+        if isinstance(table_data, dict):
+            return len(list(table_data.values())) == 0
+        if isinstance(table_data, (list, tuple, set)):
+            return len(table_data) == 0
+        return False
+
+    def _fixture_fallback_tables(self, fixture_id, resulting_tables):
+        """Fill empty fixture tables from API-Football's dedicated endpoints."""
+        self._log_event("INFO", f"checking fixture {fixture_id} for fallback data")
+        table_names = (
+            "match_summary", "match_teams", "match_scores", "match_events",
+            "match_lineups", "teams_coaches", "match_team_stats",
+            "match_players", "match_player_stats"
+        )
+        # Set of table names whose values are absent or empty. Keeping this as a
+        # set makes the endpoint-group intersections below explicit during debug.
+        missing = {
+            name for name in table_names
+            if self._fixture_table_is_empty(resulting_tables.get(name))
+        }
+        if not missing:
+            self._log_event(
+                "INFO",
+                f"fixture {fixture_id} has all tables; no fallback requests needed"
+            )
+            return resulting_tables
+
+        self._log_event(
+            "INFO",
+            f"fixture {fixture_id} fallback required for tables: {sorted(missing)}"
+        )
+
+        # Summary, teams, goals and score are fields of the fixture itself.  The
+        # dedicated API query for those fields is GET /fixtures?id={fixture_id}.
+        # Set of tables recovered together by the core /fixtures endpoint.
+        core_tables = {"match_summary", "match_teams", "match_scores"}
+        # The intersection contains only core tables that actually need fallback.
+        if missing & core_tables:
+            response = self.get_argentina_league_fixture_data(
+                {"id": fixture_id}, save_file=False, iterate_pages=False
+            )
+            items = self._response_items(response)
+            if items:
+                fallback = self._split_fixture_payload_to_tables(items[0])
+                for name in missing & core_tables:
+                    resulting_tables[name] = fallback.get(name)
+            recovered = sorted(
+                name for name in missing & core_tables
+                if not self._fixture_table_is_empty(resulting_tables.get(name))
+            )
+            still_empty = sorted((missing & core_tables) - set(recovered))
+            self._log_event(
+                "INFO",
+                f"fixture {fixture_id} /fixtures fallback recovered {recovered}; "
+                f"still empty {still_empty}"
+            )
+
+        # Each set groups tables produced by one individual API endpoint, so one
+        # request can recover every empty table in that group.
+        endpoint_groups = (
+            (
+                {"match_events"},
+                self.get_argentina_league_fixture_data_events,
+                "events"
+            ),
+            (
+                {"match_lineups", "teams_coaches"},
+                self.get_argentina_league_fixture_data_lineups,
+                "lineups"
+            ),
+            (
+                {"match_team_stats"},
+                self.get_argentina_league_fixture_data_statistics,
+                "statistics"
+            ),
+            (
+                {"match_players", "match_player_stats"},
+                self.get_argentina_league_fixture_data_players_statistics,
+                "players"
+            ),
+        )
+        for group, endpoint_method, payload_key in endpoint_groups:
+            # Set intersection selects only empty tables served by this endpoint.
+            requested_tables = missing & group
+            if not requested_tables:
+                continue
+            response = endpoint_method(
+                {"fixture": fixture_id}, save_file=False, iterate_pages=False
+            )
+            items = self._response_items(response)
+            fallback = self._split_fixture_payload_to_tables({
+                "fixture": {"id": fixture_id},
+                payload_key: items
+            })
+            for name in requested_tables:
+                resulting_tables[name] = fallback.get(name)
+
+            recovered = sorted(
+                name for name in requested_tables
+                if not self._fixture_table_is_empty(resulting_tables.get(name))
+            )
+            still_empty = sorted(requested_tables - set(recovered))
+            self._log_event(
+                "INFO",
+                f"fixture {fixture_id} /fixtures/{payload_key} fallback recovered "
+                f"{recovered}; still empty {still_empty}"
+            )
+
+        remaining_empty = sorted(
+            name for name in missing
+            if self._fixture_table_is_empty(resulting_tables.get(name))
+        )
+        recovered_tables = sorted(missing - set(remaining_empty))
+        self._log_event(
+            "INFO",
+            f"fixture {fixture_id} fallback completed; recovered {recovered_tables}; "
+            f"no extra data found for {remaining_empty}"
+        )
+
+        return resulting_tables
+
     def _save_parquet(self, df_name, df_dict):
         """Save the provided table data to a parquet file using a normalized DataFrame."""
 
@@ -1171,6 +1372,7 @@ class FootballAPI:
         if not isinstance(consolidate_output, bool):
             raise TypeError("consolidate_output must be a bool")
 
+        self._log_event("INFO", f"==========Extracting fixtures id in league {league_id} and season {season_id}")
         request_params = params.copy()
         fixture_tables = self.retrieve_full_fixture_data(
             params=request_params
@@ -1181,6 +1383,8 @@ class FootballAPI:
             for row in self._normalize_table_rows(fixture_tables.get("match_summary"))
             if isinstance(row, dict) and row.get("fixture_id") is not None
         })
+
+        self._log_event("INFO", f"==========Extracting fixtures data in league {league_id} and season {season_id}")
 
         return self.run_fixtures(
             fixture_ids,
@@ -1215,6 +1419,7 @@ class FootballAPI:
 
         for fixture_id in fixture_ids:
             resulting_tables = self.retrieve_full_fixture_data(params={"id":fixture_id})
+            resulting_tables = self._fixture_fallback_tables(fixture_id, resulting_tables)
 
             if consolidate_output:
                 match_summary.extend(self._normalize_table_rows(resulting_tables.get("match_summary")))
