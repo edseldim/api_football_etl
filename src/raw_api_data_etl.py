@@ -218,7 +218,12 @@ class FootballAPI:
 
     @staticmethod
     def _default_log_event(level, message):
-        """Provide safe terminal logging when the API is used independently."""
+        """Provide safe terminal logging when the API is used independently.
+
+        Parameters:
+            level (str): Log severity such as ``INFO`` or ``ERROR``.
+            message (Any): Message or value to print.
+        """
         print(f"[{str(level).upper()}] {message}")
 
     def _dtype_matches(self, series, expected_kind):
@@ -416,9 +421,14 @@ class FootballAPI:
         return float("nan")
 
     def _split_fixture_payload_to_tables(self, payload):
-        """
-        Convert a single fixture JSON payload into smaller dictionaries that map
-        naturally to SQL tables.
+        """Convert a single fixture payload into normalized table dictionaries.
+
+        Parameters:
+            payload (dict | list | str): Fixture object, a single-item fixture
+                list, or a JSON string containing either representation.
+
+        Returns:
+            dict: Normalized fixture tables keyed by logical table name.
         """
         if isinstance(payload, str):
             payload = json.loads(payload)
@@ -636,7 +646,15 @@ class FootballAPI:
         return resulting_tables
 
     def split_league_payload_to_table(self, payload):
-        """Convert a leagues payload into a validated, one-row-per-season table."""
+        """Convert a leagues payload into a validated, one-row-per-season table.
+
+        Parameters:
+            payload (dict | list | str): League response object, response list,
+                or JSON string to normalize.
+
+        Returns:
+            dict: The normalized ``available_leagues`` table.
+        """
         if isinstance(payload, str):
             payload = json.loads(payload)
 
@@ -1137,7 +1155,14 @@ class FootballAPI:
         return resulting_tables
 
     def _normalize_table_rows(self, table_data):
-        """Ensure table data is returned as a list of row dictionaries."""
+        """Ensure table data is returned as a list of row dictionaries.
+
+        Parameters:
+            table_data (Any): Table-shaped value to normalize.
+
+        Returns:
+            list: Normalized table rows.
+        """
         if table_data is None:
             return []
         if isinstance(table_data, list):
@@ -1147,7 +1172,14 @@ class FootballAPI:
         return [{"value": table_data}]
 
     def _response_items(self, api_response):
-        """Return a flat list of objects from a normal or paginated API response."""
+        """Return a flat list of objects from a normal or paginated API response.
+
+        Parameters:
+            api_response (Any): Raw response payload or nested response pages.
+
+        Returns:
+            list[dict]: Flattened response objects.
+        """
         if isinstance(api_response, dict) and "response" in api_response:
             api_response = api_response.get("response")
 
@@ -1162,7 +1194,14 @@ class FootballAPI:
         return items
 
     def _fixture_table_is_empty(self, table_data):
-        """Return True when a fixture table is absent or contains no rows."""
+        """Return True when a fixture table is absent or contains no rows.
+
+        Parameters:
+            table_data (Any): Fixture table value to inspect.
+
+        Returns:
+            bool: Whether the value contains no table rows.
+        """
         if table_data is None:
             return True
         if isinstance(table_data, pd.DataFrame):
@@ -1174,7 +1213,15 @@ class FootballAPI:
         return False
 
     def _fixture_fallback_tables(self, fixture_id, resulting_tables):
-        """Fill empty fixture tables from API-Football's dedicated endpoints."""
+        """Fill empty fixture tables from API-Football's dedicated endpoints.
+
+        Parameters:
+            fixture_id (int): Fixture identifier used for fallback requests.
+            resulting_tables (dict): Existing fixture tables to inspect and fill.
+
+        Returns:
+            dict: Fixture tables with available fallback data applied.
+        """
         self._log_event("INFO", f"checking fixture {fixture_id} for fallback data")
         table_names = (
             "match_summary", "match_teams", "match_scores", "match_events",
@@ -1289,7 +1336,12 @@ class FootballAPI:
         return resulting_tables
 
     def _save_parquet(self, df_name, df_dict):
-        """Save the provided table data to a parquet file using a normalized DataFrame."""
+        """Save table data to a Parquet file using a normalized DataFrame.
+
+        Parameters:
+            df_name (str | Path): Output filename stem, without ``.parquet``.
+            df_dict (Any): Table data to normalize and save. ``None`` is skipped.
+        """
 
         if df_dict is None:
             return

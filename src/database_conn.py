@@ -28,6 +28,8 @@ class PostgresConnector:
                 the connector will read DATABASE_URL from the environment.
             env_path (str | Path | None): Optional path to a .env file to load.
             echo (bool): When True, SQLAlchemy will log SQL statements.
+            log_event (callable | None): Optional callback receiving ``level`` and
+                ``message`` for connector log events.
         """
         self._log_event = log_event or self._default_log_event
 
@@ -47,7 +49,12 @@ class PostgresConnector:
 
     @staticmethod
     def _default_log_event(level, message):
-        """Provide safe terminal logging when the connector is used independently."""
+        """Provide safe terminal logging when the connector is used independently.
+
+        Parameters:
+            level (str): Log severity such as ``INFO`` or ``ERROR``.
+            message (Any): Message or value to print.
+        """
         print(f"[{str(level).upper()}] {message}")
 
     def upload_dataframe(

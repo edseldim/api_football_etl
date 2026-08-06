@@ -27,6 +27,25 @@ class FootballETL:
         prefix: Optional[str] = None,
         prefix_sql_tables: bool = False,
     ) -> None:
+        """Initialize an API-to-database or API-to-Parquet ETL instance.
+
+        Parameters:
+            api_key (str): API-Football authentication key.
+            database_url (str | None): SQLAlchemy database URL. When omitted,
+                the connector reads ``DATABASE_URL`` from the environment.
+            log_folder (str | Path): Directory for the instance log file.
+            debug (bool): Enable verbose API-client logging.
+            api_other_headers (dict | None): Additional API request headers.
+            api_general_params (dict | None): Default parameters included in API
+                requests, such as league, season, or country.
+            database_env_path (str | Path | None): Optional ``.env`` file from
+                which the database connector loads ``DATABASE_URL``.
+            database_echo (bool): Enable SQLAlchemy statement logging.
+            prefix (str | None): Prefix for local Parquet filenames and,
+                optionally, SQL tables. Defaults to ``YYYYmmDD_HHMMSS``.
+            prefix_sql_tables (bool): Apply ``prefix`` to SQL table names when
+                True. SQL names remain unprefixed by default.
+        """
         if prefix is None:
             prefix = datetime.now().strftime("%Y%m%d_%H%M%S")
         if not isinstance(prefix, str):
@@ -67,7 +86,14 @@ class FootballETL:
         self._log_event("INFO", "Football ETL initialized")
 
     def _prefixed_table_name(self, table_name: str) -> str:
-        """Return the physical SQL table or local file stem for a logical table."""
+        """Return the prefixed persistence name for a logical table.
+
+        Parameters:
+            table_name (str): Logical table name returned by the API client.
+
+        Returns:
+            str: Name with the instance prefix prepended.
+        """
         return f"{self.prefix}_{table_name}"
 
     def _get_database_connector(self) -> PostgresConnector:
@@ -98,7 +124,12 @@ class FootballETL:
             return None
 
     def _log_event(self, level: str, message: Any) -> None:
-        """Write a shared ETL event to its file or safely fall back to stdout."""
+        """Write a shared ETL event to its file or safely fall back to stdout.
+
+        Parameters:
+            level (str): Log severity such as ``INFO`` or ``ERROR``.
+            message (Any): Event message or value to record.
+        """
         timestamp = datetime.now().strftime("%Y%m%d-%H:%M:%S")
         line = f"api-etl-{timestamp} [{str(level).upper()}]: {message}"
 
@@ -116,7 +147,14 @@ class FootballETL:
 
     @staticmethod
     def _to_dataframe(table_data: Any) -> pd.DataFrame:
-        """Normalize one table returned by the API into a DataFrame."""
+        """Normalize one table returned by the API into a DataFrame.
+
+        Parameters:
+            table_data (Any): DataFrame or table-shaped value to normalize.
+
+        Returns:
+            pandas.DataFrame: Normalized table data.
+        """
         if isinstance(table_data, pd.DataFrame):
             return table_data
         if table_data is None:
@@ -151,6 +189,18 @@ class FootballETL:
         ``save_locally`` is True, database upload is skipped and each table is
         written to ``local_output_folder/<table_name>.parquet`` instead. The
         normalized DataFrames are returned for inspection or downstream use.
+
+        Parameters:
+            params (dict): Full-season extraction parameters, including
+                ``league`` and ``season``.
+            if_exists (str): SQL behavior when a destination table exists.
+            schema (str | None): Optional destination database schema.
+            save_locally (bool): Save Parquet files and skip SQL uploads when
+                True.
+            local_output_folder (str | Path): Directory for local Parquet files.
+
+        Returns:
+            dict[str, pandas.DataFrame]: Normalized tables keyed by logical name.
         """
         if not isinstance(save_locally, bool):
             raise TypeError("save_locally must be a bool")
@@ -215,7 +265,7 @@ def main() -> None:
     etl = FootballETL(api_key=api_key, debug=True)
 
     uploaded_tables = etl.run(
-        params={"league":128,"season":2026, "date":"2026-07-29"}, save_locally=True
+        params={"league":128,"season":2023}, save_locally=False
     )
 
     print(f"ETL completed: {len(uploaded_tables)} tables uploaded")
