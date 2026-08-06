@@ -38,7 +38,9 @@ class ETLLocalOutputTests(unittest.TestCase):
             pd.DataFrame, "to_parquet", record_parquet
         ):
             output_folder = Path(temp_folder) / "api-results"
-            etl = FootballETL("dummy", log_folder=Path(temp_folder) / "logs")
+            etl = FootballETL(
+                "dummy", log_folder=Path(temp_folder) / "logs", prefix="test"
+            )
 
             result = etl.run(
                 {"league": 128, "season": 2026},
@@ -48,10 +50,22 @@ class ETLLocalOutputTests(unittest.TestCase):
 
         self.assertEqual(set(result), {"match_summary", "match_events"})
         self.assertEqual(set(saved_paths), {
-            output_folder / "match_summary.parquet",
-            output_folder / "match_events.parquet",
+            output_folder / "test_match_summary.parquet",
+            output_folder / "test_match_events.parquet",
         })
         self.assertIsNone(etl.database_connector)
+
+    def test_default_prefix_uses_instantiation_timestamp(self):
+        with TemporaryDirectory() as temp_folder, patch(
+            "execute.FootballAPI", LocalOutputAPI
+        ):
+            etl = FootballETL("dummy", log_folder=Path(temp_folder) / "logs")
+
+        self.assertRegex(etl.prefix, r"^\d{8}_\d{6}$")
+
+    def test_invalid_prefix_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "prefix"):
+            FootballETL("dummy", prefix="../other-folder")
 
 
 if __name__ == "__main__":

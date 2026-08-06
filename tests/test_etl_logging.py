@@ -32,7 +32,9 @@ def test_etl_uses_one_shared_log_file(tmp_path):
     with patch("execute.FootballAPI", FakeAPI), patch(
         "execute.PostgresConnector", FakeDatabase
     ):
-        etl = FootballETL("dummy", log_folder=log_folder, debug=True)
+        etl = FootballETL(
+            "dummy", log_folder=log_folder, debug=True, prefix="test"
+        )
         result = etl.run({"league": 128, "season": 2026})
 
     log_files = list(log_folder.glob("api-etl-*.log"))
@@ -42,7 +44,7 @@ def test_etl_uses_one_shared_log_file(tmp_path):
     assert "API client initialized" in contents
     assert "API extraction completed" in contents
     assert "Database client initialized" in contents
-    assert "Database uploaded match_summary" in contents
+    assert "Database uploaded test_match_summary" in contents
     assert "Full-season ETL completed" in contents
 
 

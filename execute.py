@@ -1,5 +1,6 @@
 """Orchestrate extraction of full-season football data and database uploads."""
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -23,7 +24,17 @@ class FootballETL:
         api_general_params: Optional[dict] = None,
         database_env_path: Optional[Union[str, Path]] = None,
         database_echo: bool = False,
+        prefix: Optional[str] = None,
     ) -> None:
+        if prefix is None:
+            prefix = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not isinstance(prefix, str):
+            raise TypeError("prefix must be a string or None")
+        if not prefix or not re.fullmatch(r"[A-Za-z0-9_-]+", prefix):
+            raise ValueError(
+                "prefix must contain only letters, numbers, underscores, or hyphens"
+            )
+        self.prefix = prefix
         self.log_folder = Path(log_folder).expanduser()
         self.log_file_path: Optional[Path] = None
         self._create_log_file()
@@ -50,6 +61,10 @@ class FootballETL:
             raise
 
         self._log_event("INFO", "Football ETL initialized")
+
+    def _prefixed_table_name(self, table_name: str) -> str:
+        """Return the physical SQL table or local file stem for a logical table."""
+        return f"{self.prefix}_{table_name}"
 
     def _get_database_connector(self) -> PostgresConnector:
         """Create and cache the database connector only when an upload is requested."""
@@ -125,7 +140,8 @@ class FootballETL:
     ) -> Dict[str, pd.DataFrame]:
         """Run the full-season ETL and persist or upload every returned table.
 
-        Table names are taken from the keys returned by ``run_full_season_data``.
+        Table names are taken from the keys returned by ``run_full_season_data``
+        and prefixed with this instance's ``prefix`` when persisted.
         By default, tables are uploaded to the configured database. When
         ``save_locally`` is True, database upload is skipped and each table is
         written to ``local_output_folder/<table_name>.parquet`` instead. The
@@ -154,18 +170,19 @@ class FootballETL:
             processed_tables: Dict[str, pd.DataFrame] = {}
             for table_name, table_data in resulting_tables.items():
                 dataframe = self._to_dataframe(table_data)
+                persisted_table_name = self._prefixed_table_name(table_name)
                 self._log_event(
                     "INFO",
                     f"Prepared {len(dataframe)} rows for table {table_name}",
                 )
                 if save_locally:
-                    output_path = output_folder / f"{table_name}.parquet"
+                    output_path = output_folder / f"{persisted_table_name}.parquet"
                     dataframe.to_parquet(output_path)
                     self._log_event("INFO", f"Saved {table_name} to {output_path}")
                 else:
                     database_connector.upload_dataframe(
                         dataframe,
-                        table_name=table_name,
+                        table_name=persisted_table_name,
                         if_exists=if_exists,
                         schema=schema,
                     )
