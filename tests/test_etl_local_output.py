@@ -24,6 +24,16 @@ class ForbiddenDatabase:
         raise AssertionError("Local-output mode must not initialize the database")
 
 
+class RecordingDatabase:
+    uploaded_names = []
+
+    def __init__(self, **kwargs):
+        type(self).uploaded_names = []
+
+    def upload_dataframe(self, dataframe, table_name, **kwargs):
+        type(self).uploaded_names.append(table_name)
+
+
 class ETLLocalOutputTests(unittest.TestCase):
     def test_run_can_save_parquet_results_without_database_upload(self):
         saved_paths = []
@@ -66,6 +76,37 @@ class ETLLocalOutputTests(unittest.TestCase):
     def test_invalid_prefix_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "prefix"):
             FootballETL("dummy", prefix="../other-folder")
+
+    def test_sql_table_names_are_not_prefixed_by_default(self):
+        with TemporaryDirectory() as temp_folder, patch(
+            "execute.FootballAPI", LocalOutputAPI
+        ), patch("execute.PostgresConnector", RecordingDatabase):
+            etl = FootballETL(
+                "dummy", log_folder=Path(temp_folder) / "logs", prefix="daily"
+            )
+            etl.run({"league": 128, "season": 2026})
+
+        self.assertEqual(
+            RecordingDatabase.uploaded_names,
+            ["match_summary", "match_events"],
+        )
+
+    def test_sql_table_prefix_can_be_enabled_explicitly(self):
+        with TemporaryDirectory() as temp_folder, patch(
+            "execute.FootballAPI", LocalOutputAPI
+        ), patch("execute.PostgresConnector", RecordingDatabase):
+            etl = FootballETL(
+                "dummy",
+                log_folder=Path(temp_folder) / "logs",
+                prefix="daily",
+                prefix_sql_tables=True,
+            )
+            etl.run({"league": 128, "season": 2026})
+
+        self.assertEqual(
+            RecordingDatabase.uploaded_names,
+            ["daily_match_summary", "daily_match_events"],
+        )
 
 
 if __name__ == "__main__":

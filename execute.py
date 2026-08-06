@@ -25,6 +25,7 @@ class FootballETL:
         database_env_path: Optional[Union[str, Path]] = None,
         database_echo: bool = False,
         prefix: Optional[str] = None,
+        prefix_sql_tables: bool = False,
     ) -> None:
         if prefix is None:
             prefix = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -34,7 +35,10 @@ class FootballETL:
             raise ValueError(
                 "prefix must contain only letters, numbers, underscores, or hyphens"
             )
+        if not isinstance(prefix_sql_tables, bool):
+            raise TypeError("prefix_sql_tables must be a bool")
         self.prefix = prefix
+        self.prefix_sql_tables = prefix_sql_tables
         self.log_folder = Path(log_folder).expanduser()
         self.log_file_path: Optional[Path] = None
         self._create_log_file()
@@ -140,8 +144,9 @@ class FootballETL:
     ) -> Dict[str, pd.DataFrame]:
         """Run the full-season ETL and persist or upload every returned table.
 
-        Table names are taken from the keys returned by ``run_full_season_data``
-        and prefixed with this instance's ``prefix`` when persisted.
+        Table names are taken from the keys returned by ``run_full_season_data``.
+        Local Parquet filenames use this instance's ``prefix``. SQL table names
+        remain stable unless ``prefix_sql_tables=True`` was set at instantiation.
         By default, tables are uploaded to the configured database. When
         ``save_locally`` is True, database upload is skipped and each table is
         written to ``local_output_folder/<table_name>.parquet`` instead. The
@@ -170,19 +175,23 @@ class FootballETL:
             processed_tables: Dict[str, pd.DataFrame] = {}
             for table_name, table_data in resulting_tables.items():
                 dataframe = self._to_dataframe(table_data)
-                persisted_table_name = self._prefixed_table_name(table_name)
+                prefixed_table_name = self._prefixed_table_name(table_name)
                 self._log_event(
                     "INFO",
                     f"Prepared {len(dataframe)} rows for table {table_name}",
                 )
                 if save_locally:
-                    output_path = output_folder / f"{persisted_table_name}.parquet"
+                    output_path = output_folder / f"{prefixed_table_name}.parquet"
                     dataframe.to_parquet(output_path)
                     self._log_event("INFO", f"Saved {table_name} to {output_path}")
                 else:
                     database_connector.upload_dataframe(
                         dataframe,
-                        table_name=persisted_table_name,
+                        table_name=(
+                            prefixed_table_name
+                            if self.prefix_sql_tables
+                            else table_name
+                        ),
                         if_exists=if_exists,
                         schema=schema,
                     )
