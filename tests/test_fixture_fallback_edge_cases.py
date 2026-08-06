@@ -1,3 +1,5 @@
+"""Test selective fixture fallbacks, preservation, empty responses, and logging."""
+
 import copy
 import unittest
 
@@ -68,7 +70,10 @@ class SelectiveFallbackAPI(FallbackFootballAPI):
 
 
 class FixtureFallbackEdgeCaseTests(unittest.TestCase):
+    """Exercise fallback decisions with configurable initial and endpoint data."""
+
     def test_existing_non_empty_tables_are_preserved(self):
+        """Empty one table and assert only its endpoint runs while peers stay intact."""
         tables = populated_tables()
         original_events = copy.deepcopy(tables["match_events"])
         tables["match_lineups"] = []
@@ -81,6 +86,7 @@ class FixtureFallbackEdgeCaseTests(unittest.TestCase):
         self.assertEqual(result["match_lineups"][0]["fixture_id"], 101)
 
     def test_only_the_endpoint_for_each_empty_table_group_is_called(self):
+        """Subtest every table and compare recorded calls with its endpoint group."""
         cases = (
             (("match_summary",), ["fixture"]),
             (("match_teams",), ["fixture"]),
@@ -114,6 +120,7 @@ class FixtureFallbackEdgeCaseTests(unittest.TestCase):
                     self.assertTrue(result[table_name], table_name)
 
     def test_no_endpoint_is_called_when_all_tables_are_populated(self):
+        """Provide all tables and assert zero fallback calls and unchanged output."""
         tables = populated_tables()
         api = SelectiveFallbackAPI(tables)
 
@@ -123,6 +130,7 @@ class FixtureFallbackEdgeCaseTests(unittest.TestCase):
         self.assertEqual(result, tables)
 
     def test_empty_individual_responses_leave_tables_empty_without_stopping_other_fallbacks(self):
+        """Return empty endpoint payloads and assert later fallback groups still run."""
         tables = populated_tables()
         tables["match_events"] = []
         tables["match_lineups"] = []
@@ -146,6 +154,7 @@ class FixtureFallbackEdgeCaseTests(unittest.TestCase):
         self.assertTrue(result["match_player_stats"])
 
     def test_fallback_logs_recovered_and_unavailable_data(self):
+        """Capture injected log events and assert recovery and absence summaries."""
         tables = populated_tables()
         tables["match_events"] = []
         tables["match_players"] = []

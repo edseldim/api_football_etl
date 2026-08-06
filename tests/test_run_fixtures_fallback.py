@@ -1,9 +1,12 @@
+"""Test fixture fallback orchestration using deterministic endpoint responses."""
+
 import unittest
 
 from src.raw_api_data_etl import FootballAPI
 
 
 class FallbackFootballAPI(FootballAPI):
+    """Return empty core data and record each dedicated fallback endpoint call."""
     def __init__(self):
         super().__init__("dummy", log_event=lambda *_: None)
         self.calls = []
@@ -73,7 +76,10 @@ class FallbackFootballAPI(FootballAPI):
 
 
 class RunFixturesFallbackTests(unittest.TestCase):
+    """Verify absent fixture tables are recovered through grouped endpoints."""
+
     def test_missing_tables_are_retrieved_from_individual_endpoints(self):
+        """Return no initial tables and assert all endpoint groups populate rows."""
         api = FallbackFootballAPI()
 
         result = api.run_fixtures([123], consolidate_output=False)
@@ -85,6 +91,7 @@ class RunFixturesFallbackTests(unittest.TestCase):
             self.assertTrue(rows, table_name)
 
     def test_present_but_empty_tables_use_fallbacks(self):
+        """Return every table as an empty list and assert the same full recovery."""
         api = FallbackFootballAPI()
         table_names = (
             "match_summary", "match_teams", "match_scores", "match_events",

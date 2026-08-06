@@ -1,3 +1,5 @@
+"""Test ETL destination naming and routing with patched API and database clients."""
+
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -9,6 +11,7 @@ from execute import FootballETL
 
 
 class LocalOutputAPI:
+    """Return two deterministic logical tables without making HTTP requests."""
     def __init__(self, **kwargs):
         pass
 
@@ -20,11 +23,13 @@ class LocalOutputAPI:
 
 
 class ForbiddenDatabase:
+    """Fail immediately if local-output mode attempts database initialization."""
     def __init__(self, **kwargs):
         raise AssertionError("Local-output mode must not initialize the database")
 
 
 class RecordingDatabase:
+    """Record uploaded table names without connecting to a database."""
     uploaded_names = []
 
     def __init__(self, **kwargs):
@@ -35,7 +40,10 @@ class RecordingDatabase:
 
 
 class ETLLocalOutputTests(unittest.TestCase):
+    """Verify local Parquet output and optional SQL-prefix behavior."""
+
     def test_run_can_save_parquet_results_without_database_upload(self):
+        """Patch Parquet writes and assert prefixed paths with no database client."""
         saved_paths = []
 
         def record_parquet(dataframe, path, *args, **kwargs):
@@ -66,6 +74,7 @@ class ETLLocalOutputTests(unittest.TestCase):
         self.assertIsNone(etl.database_connector)
 
     def test_default_prefix_uses_instantiation_timestamp(self):
+        """Instantiate without a prefix and match its value to the timestamp format."""
         with TemporaryDirectory() as temp_folder, patch(
             "execute.FootballAPI", LocalOutputAPI
         ):
@@ -74,10 +83,12 @@ class ETLLocalOutputTests(unittest.TestCase):
         self.assertRegex(etl.prefix, r"^\d{8}_\d{6}$")
 
     def test_invalid_prefix_is_rejected(self):
+        """Pass a path-like prefix and assert constructor validation raises ValueError."""
         with self.assertRaisesRegex(ValueError, "prefix"):
             FootballETL("dummy", prefix="../other-folder")
 
     def test_sql_table_names_are_not_prefixed_by_default(self):
+        """Record uploads and assert default SQL names remain logical table names."""
         with TemporaryDirectory() as temp_folder, patch(
             "execute.FootballAPI", LocalOutputAPI
         ), patch("execute.PostgresConnector", RecordingDatabase):
@@ -92,6 +103,7 @@ class ETLLocalOutputTests(unittest.TestCase):
         )
 
     def test_sql_table_prefix_can_be_enabled_explicitly(self):
+        """Enable SQL prefixes and assert the recording connector receives them."""
         with TemporaryDirectory() as temp_folder, patch(
             "execute.FootballAPI", LocalOutputAPI
         ), patch("execute.PostgresConnector", RecordingDatabase):

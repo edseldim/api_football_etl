@@ -1,3 +1,5 @@
+"""Test shared ETL logging with fake clients and captured failures or output."""
+
 from unittest.mock import patch
 
 import pandas as pd
@@ -9,6 +11,7 @@ from src.raw_api_data_etl import FootballAPI
 
 
 class FakeAPI:
+    """Emit initialization and extraction events through the injected logger."""
     def __init__(self, **kwargs):
         self.log_event = kwargs["log_event"]
         self.log_event("INFO", "API client initialized")
@@ -19,6 +22,7 @@ class FakeAPI:
 
 
 class FakeDatabase:
+    """Emit initialization and upload events without performing database I/O."""
     def __init__(self, **kwargs):
         self.log_event = kwargs["log_event"]
         self.log_event("INFO", "Database client initialized")
@@ -28,6 +32,7 @@ class FakeDatabase:
 
 
 def test_etl_uses_one_shared_log_file(tmp_path):
+    """Patch both clients and assert their lifecycle events share one ETL log file."""
     log_folder = tmp_path / "nested" / "logs"
     with patch("execute.FootballAPI", FakeAPI), patch(
         "execute.PostgresConnector", FakeDatabase
@@ -49,6 +54,7 @@ def test_etl_uses_one_shared_log_file(tmp_path):
 
 
 def test_etl_logs_and_reraises_extraction_failure(tmp_path):
+    """Raise from a fake API and assert the same error is logged and propagated."""
     class FailingAPI(FakeAPI):
         def run_full_season_data(self, params, **kwargs):
             raise RuntimeError("API unavailable")
@@ -65,6 +71,7 @@ def test_etl_logs_and_reraises_extraction_failure(tmp_path):
 
 
 def test_unwritable_log_path_falls_back_without_recursion(tmp_path, capsys):
+    """Use a file as the log directory and assert safe terminal fallback via capsys."""
     invalid_folder = tmp_path / "not-a-folder"
     invalid_folder.write_text("occupied", encoding="utf-8")
 
@@ -80,6 +87,7 @@ def test_unwritable_log_path_falls_back_without_recursion(tmp_path, capsys):
 
 
 def test_direct_clients_accept_optional_log_callback(monkeypatch):
+    """Inject one callback into both clients and assert expected lifecycle messages."""
     events = []
     callback = lambda level, message: events.append((level, str(message)))
     FootballAPI("dummy", log_event=callback)
@@ -95,6 +103,7 @@ def test_direct_clients_accept_optional_log_callback(monkeypatch):
 
 
 def test_database_upload_failure_is_logged_and_reraised(monkeypatch):
+    """Patch DataFrame.to_sql to fail and assert connector logging and propagation."""
     events = []
     connector = PostgresConnector(
         "sqlite://", log_event=lambda level, message: events.append((level, str(message)))

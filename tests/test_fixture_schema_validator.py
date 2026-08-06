@@ -1,9 +1,12 @@
+"""Test schema validation against a representative nullable fixture-team row."""
+
 import pandas as pd
 
 from src.raw_api_data_etl import FootballAPI
 
 
 def test_validate_dataframe_schema_accepts_matching_columns_with_missing_values():
+    """Build a matching DataFrame with a null winner and assert clean validation."""
     api = FootballAPI("dummy")
     df = pd.DataFrame(
         {

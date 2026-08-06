@@ -1,3 +1,12 @@
+"""Exercise a live PostgreSQL connection with create, insert, and select SQL.
+
+This integration script loads ``DATABASE_URL``, creates ``measurements`` when
+needed, inserts one temperature row, and prints the ten newest rows. It verifies
+connectivity and basic write/read behavior by executing real SQL at import/run
+time; unlike the other test modules, it contains no isolated test function and
+requires an explicitly configured, reachable database.
+"""
+
 import os
 
 import psycopg

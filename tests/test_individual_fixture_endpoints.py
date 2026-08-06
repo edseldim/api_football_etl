@@ -1,3 +1,5 @@
+"""Test fixture endpoint routing and all normalized fixture-table schemas."""
+
 import unittest
 
 import pandas as pd
@@ -43,6 +45,7 @@ class IndividualFixtureEndpointTests(unittest.TestCase):
     """Protect endpoint routing and raw API output contracts used by the pipeline."""
 
     def setUp(self):
+        """Create canned endpoint responses and a request-recording API double."""
         self.fixture_id = 123
         self.responses = {
             "/fixtures": {
@@ -99,6 +102,7 @@ class IndividualFixtureEndpointTests(unittest.TestCase):
         self.api = RecordingFootballAPI(self.responses)
 
     def _assert_endpoint_contract(self, method, endpoint, params):
+        """Invoke one wrapper and compare its recorded request and returned payload."""
         expected_output = self.responses[endpoint]
 
         actual_output = method(
@@ -120,6 +124,7 @@ class IndividualFixtureEndpointTests(unittest.TestCase):
         self.api.requests.clear()
 
     def test_fixture_summary_teams_and_scores_endpoint_contract(self):
+        """Record the core fixture call and compare endpoint, options, and response."""
         self._assert_endpoint_contract(
             self.api.get_argentina_league_fixture_data,
             "/fixtures",
@@ -127,6 +132,7 @@ class IndividualFixtureEndpointTests(unittest.TestCase):
         )
 
     def test_fixture_events_endpoint_contract(self):
+        """Record the events call and compare endpoint, options, and raw response."""
         self._assert_endpoint_contract(
             self.api.get_argentina_league_fixture_data_events,
             "/fixtures/events",
@@ -134,6 +140,7 @@ class IndividualFixtureEndpointTests(unittest.TestCase):
         )
 
     def test_fixture_lineups_and_coaches_endpoint_contract(self):
+        """Record the lineups call and compare endpoint, options, and raw response."""
         self._assert_endpoint_contract(
             self.api.get_argentina_league_fixture_data_lineups,
             "/fixtures/lineups",
@@ -141,6 +148,7 @@ class IndividualFixtureEndpointTests(unittest.TestCase):
         )
 
     def test_fixture_team_statistics_endpoint_contract(self):
+        """Record the statistics call and compare endpoint, options, and response."""
         self._assert_endpoint_contract(
             self.api.get_argentina_league_fixture_data_statistics,
             "/fixtures/statistics",
@@ -148,6 +156,7 @@ class IndividualFixtureEndpointTests(unittest.TestCase):
         )
 
     def test_fixture_players_and_player_statistics_endpoint_contract(self):
+        """Record the players call and compare endpoint, options, and raw response."""
         self._assert_endpoint_contract(
             self.api.get_argentina_league_fixture_data_players_statistics,
             "/fixtures/players",
@@ -155,6 +164,7 @@ class IndividualFixtureEndpointTests(unittest.TestCase):
         )
 
     def test_all_nine_normalized_tables_pass_expected_schema_checks(self):
+        """Split one complete payload and validate columns and schema for nine tables."""
         payload = {
             "fixture": {
                 "id": self.fixture_id,

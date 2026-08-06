@@ -1436,7 +1436,8 @@ class FootballAPI:
             if isinstance(row, dict) and row.get("fixture_id") is not None
         })
 
-        self._log_event("INFO", f"\n\n==========Extracting fixtures data in league {league_id} and season {season_id}\n\n")
+        self._log_event("INFO", f"\n\n==========Extracting fixtures data in league {league_id} and season {season_id}")
+        self._log_event("INFO", f"\nSome data will be missing because fixture_ids is the data being retrieved\n\n")
 
         return self.run_fixtures(
             fixture_ids,
