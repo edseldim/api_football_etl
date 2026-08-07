@@ -7,8 +7,8 @@ from typing import Any, Dict, Optional, Union
 
 import pandas as pd
 
-from src.database_conn import PostgresConnector
-from src.raw_api_data_etl import FootballAPI, coerce_dataframe_to_schema
+from src.api_football_etl.database_conn import PostgresConnector
+from src.api_football_etl.raw_api_data_etl import FootballAPI, coerce_dataframe_to_schema
 
 
 class FootballETL:
@@ -287,11 +287,19 @@ def main() -> None:
 
     etl = FootballETL(api_key=api_key, debug=True)
 
-    uploaded_tables = etl.run(
-        params={"league":128,"season":2023}, save_locally=False
-    )
 
-    print(f"ETL completed: {len(uploaded_tables)} tables uploaded")
+    # uploaded_tables = etl.run(params={"league":130,"season":2020}, save_locally=False, insert_prod=True)
+    # uploaded_tables = etl.run(params={"league":130,"season":2021}, save_locally=False, insert_prod=True)
+    # uploaded_tables = etl.run(params={"league":130,"season":2022}, save_locally=False, insert_prod=True)
+    # uploaded_tables = etl.run(params={"league":130,"season":2023}, save_locally=False, insert_prod=True)
+    # uploaded_tables = etl.run(params={"league":130,"season":2024}, save_locally=False, insert_prod=True)
+    # uploaded_tables = etl.run(params={"league":140,"season":2019}, save_locally=False, insert_prod=True)
+    # uploaded_tables = etl.run(params={"league":140,"season":2020}, save_locally=False, insert_prod=True)
+    # uploaded_tables = etl.run(params={"league":140,"season":2021}, save_locally=False, insert_prod=True)
+    # uploaded_tables = etl.run(params={"league":140,"season":2022}, save_locally=False, insert_prod=True)
+    # uploaded_tables = etl.run(params={"league":140,"season":2023}, save_locally=False, insert_prod=True)
+
+    # print(f"ETL completed: {len(uploaded_tables)} tables uploaded")
 
 
 if __name__ == "__main__":
