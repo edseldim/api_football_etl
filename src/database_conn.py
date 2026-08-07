@@ -1,10 +1,11 @@
 import os
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Mapping, Optional, Union
 
 import dotenv
 import pandas as pd
-from sqlalchemy import create_engine
+import sqlparse
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 
@@ -106,3 +107,61 @@ class PostgresConnector:
         except Exception as exc:
             self._log_event("ERROR", f"Upload to table {table_name!r} failed: {exc}")
             raise
+
+    def run_sql_file(
+        self,
+        file_path: Union[str, Path],
+        params: Optional[Mapping[str, Any]] = None,
+    ) -> None:
+        """Execute parameterized statements from an explicitly provided SQL file.
+
+        The file is split into statements with ``sqlparse``. Every statement is
+        executed sequentially through SQLAlchemy with the same named parameter
+        mapping, for example ``WHERE league_id = :league_id``. All statements
+        share one transaction, so failures roll back the complete script. This
+        command-only method does not fetch or return result rows.
+
+        Parameters:
+            file_path (str | Path): Path to an existing ``.sql`` file.
+            params (Mapping[str, Any] | None): Values for named parameters in the
+                SQL file. Defaults to an empty mapping.
+
+        Returns:
+            None
+
+        Raises:
+            TypeError: If ``file_path`` or ``params`` has an invalid type.
+            ValueError: If ``file_path`` is empty or does not have a ``.sql`` extension.
+            FileNotFoundError: If the requested file does not exist.
+        """
+        if not isinstance(file_path, (str, Path)):
+            raise TypeError("file_path must be a string or Path")
+
+        file_path_text = str(file_path)
+        sql_path = Path(file_path_text).expanduser()
+        if not file_path_text:
+            raise ValueError("file_path must not be empty")
+        if sql_path.suffix.lower() != ".sql":
+            raise ValueError("file_path must have a .sql extension")
+        if params is not None and not isinstance(params, Mapping):
+            raise TypeError("params must be a mapping or None")
+
+        if not sql_path.is_file():
+            raise FileNotFoundError(f"SQL file not found: {sql_path}")
+
+        bound_params = dict(params or {})
+        sql = sql_path.read_text(encoding="utf-8")
+        queries = [query.strip() for query in sqlparse.split(sql) if query.strip()]
+        self._log_event(
+            "INFO",
+            f"Loaded {len(queries)} querie(s) from file {sql_path.name}",
+        )
+        with self.engine.begin() as connection:
+            for query in queries:
+                self._log_event("INFO", f"RUNNING {query}")
+                try:
+                    connection.execute(text(query), bound_params)
+                    self._log_event("INFO", "RAN SUCCESSFULLY")
+                except Exception as exc:
+                    self._log_event("ERROR", f"ERROR {exc} {query}")
+                    raise

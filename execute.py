@@ -179,6 +179,7 @@ class FootballETL:
         schema: Optional[str] = None,
         save_locally: bool = False,
         local_output_folder: Union[str, Path] = "data",
+        insert_prod: bool = False,
     ) -> Dict[str, pd.DataFrame]:
         """Run the full-season ETL and persist or upload every returned table.
 
@@ -198,12 +199,24 @@ class FootballETL:
             save_locally (bool): Save Parquet files and skip SQL uploads when
                 True.
             local_output_folder (str | Path): Directory for local Parquet files.
+            insert_prod (bool): Run ``src/static/sql/insert_prod.sql`` after all
+                database uploads. This option requires unprefixed SQL staging
+                tables and is unavailable when ``save_locally`` is True.
 
         Returns:
             dict[str, pandas.DataFrame]: Normalized tables keyed by logical name.
         """
         if not isinstance(save_locally, bool):
             raise TypeError("save_locally must be a bool")
+        if not isinstance(insert_prod, bool):
+            raise TypeError("insert_prod must be a bool")
+        if insert_prod and save_locally:
+            raise ValueError("insert_prod cannot be used with save_locally=True")
+        if insert_prod and self.prefix_sql_tables:
+            raise ValueError(
+                "insert_prod requires prefix_sql_tables=False so its staging "
+                "table names match insert_prod.sql"
+            )
 
         self._log_event("INFO", f"Full-season ETL started with params {params}")
         try:
@@ -246,6 +259,13 @@ class FootballETL:
                         schema=schema,
                     )
                 processed_tables[table_name] = dataframe
+
+            if insert_prod:
+                insert_prod_path = (
+                    Path(__file__).resolve().parent / "src" / "static" / "sql" / "insert_prod.sql"
+                )
+                self._log_event("INFO", "Inserting uploaded tables into production")
+                database_connector.run_sql_file(insert_prod_path)
 
             self._log_event(
                 "INFO", f"Full-season ETL completed: {len(processed_tables)} tables"
