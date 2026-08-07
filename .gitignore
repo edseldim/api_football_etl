@@ -5,3 +5,4 @@ __pycache__/
 data/
 .env
 todo_list.md
+*.egg-info
