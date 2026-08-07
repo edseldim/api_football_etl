@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, Union
 import pandas as pd
 
 from src.database_conn import PostgresConnector
-from src.raw_api_data_etl import FootballAPI
+from src.raw_api_data_etl import FootballAPI, coerce_dataframe_to_schema
 
 
 class FootballETL:
@@ -238,6 +238,9 @@ class FootballETL:
             processed_tables: Dict[str, pd.DataFrame] = {}
             for table_name, table_data in resulting_tables.items():
                 dataframe = self._to_dataframe(table_data)
+                dataframe = coerce_dataframe_to_schema(
+                    dataframe, source_name=table_name
+                )
                 prefixed_table_name = self._prefixed_table_name(table_name)
                 self._log_event(
                     "INFO",
