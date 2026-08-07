@@ -179,6 +179,85 @@ TABLE_NAME_TO_PARQUET_SCHEMA = {
 }
 
 
+def coerce_dataframe_to_schema(data, expected_schema=None, source_name=None):
+    """Convert DataFrame columns to their declared parquet-compatible dtypes.
+
+    Parameters:
+        data (pandas.DataFrame): DataFrame whose columns should be converted.
+        expected_schema (dict | None): Explicit schema mapping. When omitted,
+            ``source_name`` is resolved through the configured schema mappings.
+        source_name (str | None): Logical table name or schema filename.
+
+    Returns:
+        pandas.DataFrame: A converted copy of ``data``.
+
+    Raises:
+        TypeError: If ``data`` is not a DataFrame.
+        ValueError: If no schema exists or a value cannot be converted.
+    """
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError("data must be a pandas DataFrame")
+
+    schema = expected_schema
+    if schema is None and source_name is not None:
+        schema = EXPECTED_PARQUET_SCHEMAS.get(source_name)
+        if schema is None:
+            schema_name = TABLE_NAME_TO_PARQUET_SCHEMA.get(source_name)
+            schema = EXPECTED_PARQUET_SCHEMAS.get(schema_name)
+    if schema is None:
+        raise ValueError(f"no schema definition found for {source_name or 'dataframe'}")
+
+    converted = data.copy()
+    for column_name, spec in schema.items():
+        if column_name not in converted.columns:
+            converted[column_name] = pd.Series(
+                pd.NA,
+                index=converted.index,
+                dtype="object",
+            )
+        expected_kind = spec.get("kind")
+        series = converted[column_name]
+        try:
+            if expected_kind == "int":
+                converted[column_name] = pd.to_numeric(
+                    series, errors="raise"
+                ).astype("Int64")
+            elif expected_kind == "float":
+                converted[column_name] = pd.to_numeric(
+                    series, errors="raise"
+                ).astype("float64")
+            elif expected_kind == "bool":
+                normalized = series.map(
+                    lambda value: (
+                        value
+                        if pd.isna(value) or isinstance(value, bool)
+                        else {"true": True, "false": False}.get(
+                            str(value).strip().lower(), value
+                        )
+                    )
+                )
+                converted[column_name] = normalized.astype("boolean")
+            elif expected_kind == "string":
+                converted[column_name] = series.astype("string")
+            elif expected_kind == "datetime":
+                converted[column_name] = pd.to_datetime(
+                    series, errors="raise", utc=True
+                )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Unable to convert {source_name or 'dataframe'}.{column_name} "
+                f"to {expected_kind}: {exc}"
+            ) from exc
+
+    schema_columns = list(schema)
+    extra_columns = [
+        column_name
+        for column_name in converted.columns
+        if column_name not in schema
+    ]
+    return converted[schema_columns + extra_columns]
+
+
 class FootballAPI:
 
     def __init__(self, api_key,
@@ -1437,7 +1516,7 @@ class FootballAPI:
         })
 
         self._log_event("INFO", f"\n\n==========Extracting fixtures data in league {league_id} and season {season_id}")
-        self._log_event("INFO", f"\nSome data will be missing because fixture_ids is the data being retrieved\n\n")
+        self._log_event("INFO", f"\nSome data might be missing but it's expected since fixture_ids is the data being retrieved\n\n")
 
         return self.run_fixtures(
             fixture_ids,
