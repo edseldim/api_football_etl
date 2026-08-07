@@ -4,7 +4,7 @@ import unittest
 
 import pandas as pd
 
-from src.raw_api_data_etl import (
+from src.api_football_etl.raw_api_data_etl import (
     EXPECTED_PARQUET_SCHEMAS,
     TABLE_NAME_TO_PARQUET_SCHEMA,
     FootballAPI,

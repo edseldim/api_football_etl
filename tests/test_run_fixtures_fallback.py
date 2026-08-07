@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.raw_api_data_etl import FootballAPI
+from src.api_football_etl.raw_api_data_etl import FootballAPI
 
 
 class FallbackFootballAPI(FootballAPI):

@@ -4,7 +4,7 @@ import unittest
 
 import pandas as pd
 
-from src.raw_api_data_etl import FootballAPI
+from src.api_football_etl.raw_api_data_etl import FootballAPI
 
 
 class FixtureSchemaValidatorTests(unittest.TestCase):

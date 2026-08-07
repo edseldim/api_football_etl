@@ -5,9 +5,9 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from execute import FootballETL
-from src.database_conn import PostgresConnector
-from src.raw_api_data_etl import FootballAPI
+from src.api_football_etl.execute import FootballETL
+from src.api_football_etl.database_conn import PostgresConnector
+from src.api_football_etl.raw_api_data_etl import FootballAPI
 
 
 class FakeAPI:

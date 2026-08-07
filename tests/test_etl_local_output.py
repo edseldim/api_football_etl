@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from execute import FootballETL
+from src.api_football_etl.execute import FootballETL
 
 
 class LocalOutputAPI:

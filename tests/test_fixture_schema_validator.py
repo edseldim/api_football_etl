@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from src.raw_api_data_etl import FootballAPI, coerce_dataframe_to_schema
+from src.api_football_etl.raw_api_data_etl import FootballAPI, coerce_dataframe_to_schema
 
 
 def test_validate_dataframe_schema_accepts_matching_columns_with_missing_values():

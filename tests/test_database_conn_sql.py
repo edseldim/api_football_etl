@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 
 from sqlalchemy import text
 
-from src.database_conn import PostgresConnector
+from src.api_football_etl.database_conn import PostgresConnector
 
 
 class SQLFileExecutionTests(unittest.TestCase):
