@@ -119,6 +119,37 @@ Database table names are unprefixed by default. Set
 `prefix_sql_tables=True` on `FootballETL` to retain separate, prefixed tables
 for each run. Valid `if_exists` values are `fail`, `replace`, and `append`.
 
+## Production tables
+
+The production schema is defined in
+[`create_prod_tables.sql`](src/api_football_etl/static/sql/create_prod_tables.sql).
+It creates the following PostgreSQL tables:
+
+| Table | Contents |
+| --- | --- |
+| `prod_argentina_available_leagues` | League, country, season, and API coverage metadata. |
+| `prod_match_summary` | One match-level record with fixture status, venue, league, teams, and final goals. |
+| `prod_match_teams` | Home and away team details for each fixture. |
+| `prod_match_scores` | Half-time, full-time, extra-time, and penalty score values. |
+| `prod_match_events` | Goals, cards, substitutions, and other timestamped match events. |
+| `prod_match_lineups` | Formations, starters, substitutes, positions, and formation-grid locations. |
+| `prod_teams_coaches` | Coaches associated with each fixture and team. |
+| `prod_match_team_stats` | Long-form, fixture-level team statistics such as possession and shots. |
+| `prod_match_players` | Player identity and team membership within each fixture. |
+| `prod_match_player_stats` | Per-fixture player performance, including shots, goals, passes, tackles, cards, and penalties. |
+
+Most match tables can be joined through `fixture_id`. Player-level joins use `fixture_id` and `player_id`, while team-level joins use `fixture_id` and `team_id`. The DDL provides indexes for these common joins as well as match summary queries by date, league and season. It intentionally defines no primary or foreign keys because the extracted source data does not establish reliable row uniqueness and some identifiers are nullable.
+
+The ETL first writes unprefixed staging tables such as `match_summary` and `match_events`. Setting `insert_prod=True` copies those staging rows into their corresponding `prod_*` tables with [`insert_prod.sql`](src/api_football_etl/static/sql/insert_prod.sql), then runs `ANALYZE` so PostgreSQL refreshes its query-planning statistics. Production promotion requires `save_locally=False` and `prefix_sql_tables=False`.
+
+Run the production DDL once before the first promotion:
+
+```powershell
+psql "$env:DATABASE_URL" -f src/api_football_etl/static/sql/create_prod_tables.sql
+```
+
+Be careful when rerunning this command: the DDL starts by dropping each existing `prod_*` table, so all data currently stored in those tables is deleted. The promotion script uses plain `INSERT` statements and does not deduplicate rows; avoid promoting the same staging dataset more than once unless duplicates are intended.
+
 ## Pipeline flow
 
 1. Validate the required integer `league` and `season` parameters.
