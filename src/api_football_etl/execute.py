@@ -265,7 +265,7 @@ class FootballETL:
 
             if insert_prod:
                 insert_prod_path = (
-                    Path(__file__).resolve().parent / "src" / "static" / "sql" / "insert_prod.sql"
+                    Path(__file__).resolve().parent / "static" / "sql" / "insert_prod.sql"
                 )
                 self._log_event("INFO", "Inserting uploaded tables into production")
                 database_connector.run_sql_file(insert_prod_path)
