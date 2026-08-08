@@ -16,6 +16,7 @@ setup(
         "requests",
         "SQLAlchemy",
         "sqlparse>=0.5,<1",
+        "psycopg2"
     ],
     python_requires=">=3.9",
 )
